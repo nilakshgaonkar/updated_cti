@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Comparison with Coordinates</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f9f9f9;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        label {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        input[type="text"], input[type="password"], input[type="file"] {
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .upload-container {
+            margin-top: 10px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin-top: 10px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .green {
+            color: green;
+        }
+        .red {
+            color: red;
+        }
+        .location {
+            margin-top: 20px;
+            font-size: 14px;
+            text-align: center;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="auth-container">
+        <h1>Sign In</h1>
+        <div class="input-field">
+            <label for="email">Email</label>
+            <input type="text" id="email" placeholder="Enter your email">
+        </div>
+        <div class="input-field">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password">
+        </div>
+        <button class="button" onclick="login()">Sign In</button>
+    </div>
+
+    <div class="container" id="upload-container" style="display: none;">
+        <h1>Image Comparison</h1>
+        <div class="upload-container">
+            <label for="user-image">User Image:</label>
+            <input type="file" id="user-image" accept="image/*" onchange="previewImage(event, 'user-preview')">
+            <img id="user-preview" alt="User Image Preview">
+        </div>
+        <div class="upload-container">
+            <label for="camera-image">Camera Image:</label>
+            <input type="file" id="camera-image" accept="image/*" onchange="previewImage(event, 'camera-preview')">
+            <img id="camera-preview" alt="Camera Image Preview">
+        </div>
+        <button class="button" onclick="compareImages()">Compare Images</button>
+        <div id="result" class="result"></div>
+        <div id="location" class="location"></div>
+    </div>
+
+    <script>
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (email && password) {
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('upload-container').style.display = 'block';
+            } else {
+                alert('Please enter email and password.');
+            }
+        }
+
+        function previewImage(event, previewId) {
+            const reader = new FileReader();
+            reader.onload = function () {
+                const output = document.getElementById(previewId);
+                output.src = reader.result;
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+    async function compareImages() {
+    const userImage = document.getElementById('user-image').files[0];
+    const cameraImage = document.getElementById('camera-image').files[0];
+
+    if (userImage && cameraImage) {
+        const userImgURL = URL.createObjectURL(userImage);
+        const cameraImgURL = URL.createObjectURL(cameraImage);
+
+        // Load models
+        await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
+        await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+        await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+
+        // Detect faces
+        const userImg = await faceapi.fetchImage(userImgURL);
+        const userDescriptor = await faceapi.detectSingleFace(userImg).withFaceLandmarks().withFaceDescriptor();
+
+        const cameraImg = await faceapi.fetchImage(cameraImgURL);
+        const cameraDescriptor = await faceapi.detectSingleFace(cameraImg).withFaceLandmarks().withFaceDescriptor();
+
+        if (!userDescriptor || !cameraDescriptor) {
+            document.getElementById('result').innerHTML = '<span class="red">✖ Face not detected in one or both images.</span>';
+            return;
+        }
+
+        // Compare descriptors
+        const distance = faceapi.euclideanDistance(userDescriptor.descriptor, cameraDescriptor.descriptor);
+        if (distance < 0.6) {
+            document.getElementById('result').innerHTML = '<span class="green">✔ Faces are Identical</span>';
+        } else {
+            document.getElementById('result').innerHTML = '<span class="red">✖ Faces are Not Identical</span>';
+        }
+    } else {
+        alert('Please upload both images!');
+    }
+}
+
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError);
+            } else {
+                document.getElementById('location').innerHTML = "Geolocation is not supported by this browser.";
+            }
+        }
+
+        function showPosition(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            document.getElementById('location').innerHTML = `Your Coordinates: Latitude ${latitude}, Longitude ${longitude}`;
+        }
+
+        function showError(error) {
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    document.getElementById('location').innerHTML = "User denied the request for Geolocation.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    document.getElementById('location').innerHTML = "Location information is unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    document.getElementById('location').innerHTML = "The request to get user location timed out.";
+                    break;
+                case error.UNKNOWN_ERROR:
+                    document.getElementById('location').innerHTML = "An unknown error occurred.";
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>
